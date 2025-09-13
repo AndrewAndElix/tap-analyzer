@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>SpeedStars Tap Analyzer</title>
+  <meta name="theme-color" content="#10b981" />
+  <style>
+    :root{
+      --red:#ef4444; --green:#10b981; --bg:#0b1020; --fg:#e5e7eb;
+      --card:#121830; --muted:#9ca3af; --accent:#38bdf8; --warn:#f59e0b;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial; color:var(--fg);
+      background: radial-gradient(1200px 1200px at 50% -10%, #1f2945, #0b1020 60%);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .wrap{display:flex; flex-direction:column; min-height:100%;}
+    header{
+      display:flex; justify-content:space-between; align-items:center; gap:.75rem;
+      padding: env(safe-area-inset-top) 16px 12px 16px;
+    }
+    .brand{display:flex; align-items:center; gap:.6rem; font-weight:700; letter-spacing:.3px}
+    .brand .dot{width:10px; height:10px; border-radius:50%; background:var(--accent); box-shadow:0 0 16px var(--accent)}
+    .pill{border:1px solid #334155; background:#0f172a; padding:.35rem .6rem; border-radius:999px; color:#93c5fd; font-size:.8rem}
+
+    main{flex:1; display:flex; align-items:center; justify-content:center; padding:16px}
+    .panel{width:min(680px, 100%);}
+
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      backdrop-filter:saturate(140%) blur(6px);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:20px; padding:20px; box-shadow:0 10px 40px rgba(0,0,0,.35);
+    }
+    .screen{display:flex; align-items:center; justify-content:center; height:56vh; border-radius:18px; position:relative; overflow:hidden; user-select:none}
+    .screen.red{background:radial-gradient(800px 380px at 50% -40%, #f87171, #7f1d1d 70%)}
+    .screen.green{background:radial-gradient(800px 380px at 50% -40%, #6ee7b7, #065f46 70%)}
+
+    .countdown{position:absolute; inset:0; display:grid; place-items:center; font-weight:800; font-size:clamp(56px, 14vw, 160px); color:rgba(255,255,255,.95)}
+    .countdown.fade{animation:fade .3s ease forwards}
+    @keyframes fade{to{opacity:0; transform:scale(.92)}}
+
+    .metrics{display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-top:14px}
+    .metric{background:var(--card); border:1px solid rgba(255,255,255,.06); border-radius:14px; padding:12px}
+    .label{font-size:.82rem; color:var(--muted)}
+    .value{font-size:1.5rem; font-weight:800}
+    .sub{font-size:.8rem; color:#a5b4fc}
+
+    .actions{display:flex; gap:10px; margin-top:14px; flex-wrap:wrap}
+    button{
+      appearance:none; border:1px solid rgba(255,255,255,.1); color:white; background:#0f172a; border-radius:12px; padding:12px 14px; font-weight:700;
+      box-shadow:0 6px 20px rgba(0,0,0,.25); cursor:pointer
+    }
+    button.accent{background:linear-gradient(90deg, #38bdf8, #22d3ee); border-color:transparent; color:#0b1020}
+    button.warn{background:linear-gradient(90deg, #fbbf24, #f59e0b); border-color:transparent; color:#111827}
+
+    .report{margin-top:16px}
+    .badge{display:inline-flex; align-items:center; gap:.5rem; padding:.45rem .7rem; border-radius:999px; font-size:.86rem; font-weight:700; margin:.18rem .18rem 0 0}
+    .ok{background:rgba(16,185,129,.15); color:#a7f3d0; border:1px solid rgba(16,185,129,.35)}
+    .off{background:rgba(239,68,68,.12); color:#fecaca; border:1px solid rgba(239,68,68,.35)}
+    .note{color:#c7d2fe; font-size:.9rem; margin-top:8px}
+
+    footer{padding:10px 16px calc(10px + env(safe-area-inset-bottom)); color:#94a3b8; font-size:.82rem; display:flex; justify-content:space-between; align-items:center; gap:8px}
+    .link{color:#93c5fd; text-decoration:underline dotted}
+
+    @media (max-width:520px){
+      .metrics{grid-template-columns:1fr}
+      .screen{height:58vh}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand"><span class="dot"></span> SpeedStars Tap Analyzer</div>
+      <div class="pill" id="support">Force: checking…</div>
+    </header>
+
+    <main>
+      <div class="panel">
+        <div id="screen" class="card screen red" aria-live="polite">
+          <div id="countdown" class="countdown">TAP TO ARM</div>
+        </div>
+
+        <div class="metrics">
+          <div class="metric"><div class="label">BPM (target 300)</div><div class="value" id="bpm">—</div><div class="sub" id="bpmDelta"></div></div>
+          <div class="metric"><div class="label">Interval Consistency (CV%)</div><div class="value" id="cv">—</div><div class="sub">Lower is better</div></div>
+          <div class="metric"><div class="label">Hold Consistency (CV%)</div><div class="value" id="holdcv">—</div><div class="sub">Press durations</div></div>
+          <div class="metric"><div class="label">Force Consistency (CV%)</div><div class="value" id="forcecv">—</div><div class="sub" id="forceNote">Averages per tap</div></div>
+        </div>
+
+        <div class="actions">
+          <button class="accent" id="arm">Arm (3-2-1)</button>
+          <button id="restart">Restart</button>
+          <button class="warn" id="share">Share Result</button>
+          <button id="saveJson">Export JSON</button>
+        </div>
+
+        <div class="report" id="report"></div>
+      </div>
+    </main>
+
+    <footer>
+      <div>Stop window: last 5s are ignored for “off” checks.</div>
+      <div></div>
+    </footer>
+  </div>
+
+<script>
+  // --- State & Elements ---
+  const screenEl = document.getElementById('screen');
+  const cdEl = document.getElementById('countdown');
+  const bpmEl = document.getElementById('bpm');
+  const bpmDeltaEl = document.getElementById('bpmDelta');
+  const cvEl = document.getElementById('cv');
+  const holdcvEl = document.getElementById('holdcv');
+  const forcecvEl = document.getElementById('forcecv');
+  const forceNoteEl = document.getElementById('forceNote');
+  const reportEl = document.getElementById('report');
+  const supportEl = document.getElementById('support');
+  const armBtn = document.getElementById('arm');
+  const restartBtn = document.getElementById('restart');
+  const shareBtn = document.getElementById('share');
+  const saveBtn = document.getElementById('saveJson');
+
+  let armed=false, running=false, idleTimer=null, startTs=null;
+  let taps=[]; // {down, up, holdMs, avgForce}
+  let currentForceSum=0, currentForceN=0;
+  let lastDownTs=null, lastUpTs=null, lastTapTs=null;
+
+  const STOP_IDLE_MS = 5000; // 5 seconds
+  const TARGET_BPM = 300;    // 5 taps/s
+  const BPM_TOL = 0.03;      // ±3%
+  const CONSISTENCY_TOL_INTERVAL = 5; // CV% threshold
+  const CONSISTENCY_TOL_HOLD     = 5; // CV%
+  const CONSISTENCY_TOL_FORCE    = 10;// CV%
+
+  // Touch force support
+  const forceSupported = typeof Touch !== 'undefined' && 'prototype' in Touch && ('force' in Touch.prototype);
+  supportEl.textContent = `Force: ${forceSupported ? 'supported (varies by device)' : 'not available'}`;
+  if(!forceSupported){ forceNoteEl.textContent = 'Not supported on this device'; }
+
+  // Utility
+  const fmt = (v, d=2)=> Number.isFinite(v) ? v.toFixed(d) : '—';
+  const mean = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : NaN;
+  const std = (arr, m=mean(arr)) => arr.length>1 ? Math.sqrt(arr.map(x=> (x-m)**2).reduce((a,b)=>a+b)/ (arr.length-1) ) : NaN;
+  const cvPct = arr => {
+    if(arr.length<2) return NaN;
+    const m = mean(arr); if(m<=0) return NaN;
+    return std(arr,m)/m*100;
+  };
+
+  function resetSession(){
+    running=false; armed=false; startTs=null;
+    taps.length=0;
+    lastDownTs=lastUpTs=lastTapTs=null;
+    currentForceSum=0; currentForceN=0;
+    clearTimeout(idleTimer);
+    screenEl.classList.remove('green'); screenEl.classList.add('red');
+    cdEl.textContent='TAP TO ARM'; cdEl.style.opacity=1; cdEl.classList.remove('fade');
+    renderMetrics(); reportEl.innerHTML='';
+  }
+
+  function armCountdown(){
+    if(running) return;
+    armed=true; let n=3;
+    cdEl.classList.remove('fade');
+    cdEl.textContent=n;
+    const tick = ()=>{
+      n--;
+      if(n>0){
+        cdEl.textContent=n;
+        setTimeout(tick, 1000);
+      }else{
+        cdEl.textContent=''; cdEl.classList.add('fade');
+        startRun();
+      }
+    };
+    setTimeout(tick, 1000);
+  }
+
+  function startRun(){
+    running=true; screenEl.classList.remove('red'); screenEl.classList.add('green');
+    startTs=performance.now();
+    kickIdleTimer();
+  }
+
+  function kickIdleTimer(){
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(()=> endRun('idle'), STOP_IDLE_MS);
+  }
+
+  function endRun(reason='idle'){
+    running=false; armed=false;
+    clearTimeout(idleTimer);
+    // Analyze (exclude the final idle gap)
+    analyzeAndRender();
+    screenEl.classList.remove('green'); screenEl.classList.add('red');
+    cdEl.textContent = reason==='idle' ? 'Stopped (idle ≥ 5s)' : 'Stopped';
+    cdEl.classList.remove('fade'); cdEl.style.opacity=1;
+  }
+
+  // Gather intervals/holds/forces, compute stats
+  function analyzeAndRender(){
+    if(taps.length===0){ renderMetrics(); reportEl.innerHTML='<div class="note">No taps recorded.</div>'; return; }
+
+    // Build interval list (between tap downs)
+    const downs = taps.map(t=>t.down);
+    let intervals = [];
+    for(let i=1;i<downs.length;i++){
+      const dt = downs[i]-downs[i-1];
+      intervals.push(dt);
+    }
+    // Exclude the last long idle interval (the stop window)
+    if(intervals.length && intervals[intervals.length-1] > STOP_IDLE_MS) intervals.pop();
+
+    const holds = taps.map(t=>t.holdMs).filter(v=>Number.isFinite(v) && v>=0);
+    const forces = taps.map(t=>t.avgForce).filter(v=>Number.isFinite(v));
+
+    const meanInterval = intervals.length ? mean(intervals) : NaN;
+    const bpm = Number.isFinite(meanInterval) ? 60000/meanInterval : NaN;
+    const deltaBpm = Number.isFinite(bpm) ? bpm - TARGET_BPM : NaN;
+
+    const cvInterval = cvPct(intervals);
+    const cvHold     = cvPct(holds);
+    const cvForce    = cvPct(forces);
+
+    bpmEl.textContent = fmt(bpm,2);
+    bpmDeltaEl.textContent = Number.isFinite(deltaBpm) ? (deltaBpm>=0?`+${fmt(deltaBpm,2)} BPM`:`${fmt(deltaBpm,2)} BPM`) : '';
+    cvEl.textContent = fmt(cvInterval,2);
+    holdcvEl.textContent = fmt(cvHold,2);
+    forcecvEl.textContent = forceSupported ? fmt(cvForce,2) : '—';
+
+    // Flags
+    const flags = [];
+    if(Number.isFinite(bpm)){
+      const within = Math.abs(bpm - TARGET_BPM) <= TARGET_BPM*BPM_TOL;
+      if(within) flags.push({ok:true, text:'BPM on target'});
+      else flags.push({ok:false, text: bpm > TARGET_BPM ? 'BPM too fast' : 'BPM too slow'});
+    }
+    if(Number.isFinite(cvInterval)){
+      if(cvInterval <= CONSISTENCY_TOL_INTERVAL) flags.push({ok:true, text:'Timing even'});
+      else flags.push({ok:false, text:'Timing uneven'});
+    }
+    if(Number.isFinite(cvHold)){
+      if(cvHold <= CONSISTENCY_TOL_HOLD) flags.push({ok:true, text:'Hold even'});
+      else flags.push({ok:false, text:'Hold uneven'});
+    }
+    if(forceSupported && Number.isFinite(cvForce)){
+      if(cvForce <= CONSISTENCY_TOL_FORCE) flags.push({ok:true, text:'Force even'});
+      else flags.push({ok:false, text:'Force uneven'});
+    }
+    // Render badges
+    reportEl.innerHTML = flags.map(f=>`<span class="badge ${f.ok?'ok':'off'}">${f.text}</span>`).join('') +
+      `<div class="note">Target is <b>300 BPM</b> (5 taps/sec). CV% = variation (lower is better).</div>`;
+  }
+
+  function renderMetrics(){
+    bpmEl.textContent='—'; bpmDeltaEl.textContent='';
+    cvEl.textContent='—'; holdcvEl.textContent='—'; forcecvEl.textContent= forceSupported ? '—':'—';
+  }
+
+  // Input handlers (touch & mouse)
+  function onDown(ts, forceVal){
+    if(!running){
+      if(!armed){ armCountdown(); }
+      return;
+    }
+    lastDownTs = ts; lastTapTs = ts;
+    currentForceSum = 0; currentForceN = 0;
+    if(Number.isFinite(forceVal)){ currentForceSum += forceVal; currentForceN++; }
+    kickIdleTimer();
+  }
+  function onMove(forceVal){
+    if(!running || lastDownTs==null) return;
+    if(Number.isFinite(forceVal)){ currentForceSum += forceVal; currentForceN++; }
+  }
+  function onUp(ts){
+    if(!running || lastDownTs==null) return;
+    lastUpTs = ts; lastTapTs = ts;
+    const holdMs = ts - lastDownTs;
+    const avgForce = currentForceN>0 ? currentForceSum/currentForceN : NaN;
+    taps.push({down:lastDownTs, up:lastUpTs, holdMs, avgForce});
+    lastDownTs = null; currentForceSum=0; currentForceN=0;
+    kickIdleTimer();
+  }
+
+  // Touch events
+  screenEl.addEventListener('touchstart', (e)=>{
+    const t = e.changedTouches[0];
+    onDown(performance.now(), forceSupported ? t.force : NaN);
+  }, {passive:true});
+  screenEl.addEventListener('touchmove', (e)=>{
+    const t = e.changedTouches[0];
+    onMove(forceSupported ? t.force : NaN);
+  }, {passive:true});
+  screenEl.addEventListener('touchend', (e)=>{
+    onUp(performance.now());
+  }, {passive:true});
+
+  // Mouse fallback (desktop testing)
+  screenEl.addEventListener('mousedown', ()=> onDown(performance.now(), NaN));
+  screenEl.addEventListener('mouseup', ()=> onUp(performance.now()));
+
+  // Buttons
+  armBtn.addEventListener('click', ()=> armCountdown());
+  restartBtn.addEventListener('click', ()=> resetSession());
+
+  shareBtn.addEventListener('click', async ()=>{
+    // Prepare summary
+    const downs = taps.map(t=>t.down);
+    let intervals = [];
+    for(let i=1;i<downs.length;i++){
+      const dt = downs[i]-downs[i-1];
+      intervals.push(dt);
+    }
+    if(intervals.length && intervals[intervals.length-1] > STOP_IDLE_MS) intervals.pop();
+    const holds = taps.map(t=>t.holdMs).filter(v=>Number.isFinite(v)&&v>=0);
+    const forces = taps.map(t=>t.avgForce).filter(v=>Number.isFinite(v));
+    const meanInterval = intervals.length ? mean(intervals) : NaN;
+    const bpm = Number.isFinite(meanInterval) ? 60000/meanInterval : NaN;
+
+    const msg = `SpeedStars Tap Analyzer
+BPM: ${fmt(bpm)}
+Interval CV%: ${fmt(cvPct(intervals))}
+Hold CV%: ${fmt(cvPct(holds))}
+Force CV%: ${forceSupported ? fmt(cvPct(forces)) : 'N/A'}`;
+
+    if(navigator.share){
+      try{ await navigator.share({title:'Tap Analysis', text:msg}); }catch(_){}
+    }else{
+      // Fallback: copy to clipboard
+      try{
+        await navigator.clipboard.writeText(msg);
+        alert('Summary copied to clipboard!');
+      }catch(_){
+        alert(msg);
+      }
+    }
+  });
+
+  saveBtn.addEventListener('click', ()=>{
+    const data = {
+      targetBPM: TARGET_BPM,
+      stopIdleMs: STOP_IDLE_MS,
+      taps,
+      timestamp: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `tap-session-${Date.now()}.json`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  });
+
+  // Start ready
+  resetSession();
+</script>
+</body>
+</html>
